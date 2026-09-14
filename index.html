@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SMILE Speech Signal Lab</title>
+<meta name="description" content="Client-side motor-speech and prosodic acoustic measurement against published reference distributions. Not a stroke test and not a medical device.">
+<link rel="stylesheet" href="src/styles/tokens.css">
+<link rel="stylesheet" href="src/styles/app.css">
+<link rel="stylesheet" href="src/styles/routes.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+
+<header class="topbar">
+  <div class="topbar-in">
+    <a class="brand" href="#/session" aria-label="SMILE Speech Signal Lab — home">
+      <b>SMILE</b>
+      <span><i>Speech Signal Lab</i><small>Motor speech &amp; prosody measurement</small></span>
+    </a>
+    <nav class="routes" aria-label="Primary">
+      <a href="#/session" data-route="session"><span class="step">1</span> Session</a>
+      <a href="#/record"  data-route="record"><span class="step">2</span> Record</a>
+      <a href="#/results" data-route="results"><span class="step">3</span> Results</a>
+      <a href="#/method"  data-route="method"><span class="step">4</span> Method</a>
+    </nav>
+  </div>
+</header>
+
+<!-- Emergency banner: appears on EVERY route. Copy is fixed; softening needs
+     human approval. -->
+<div class="emergency" role="alert">
+  <div class="emergency-in">
+    <div>
+      <b>Not a stroke test and not a medical device.</b>
+      This reports acoustic measurements and how far they sit from reference ranges.
+      No threshold here is clinically validated. Sudden face droop, arm weakness or
+      new speech difficulty — do not record.
+    </div>
+    <div class="call">Call 995 now</div>
+  </div>
+</div>
+
+<main id="main" tabindex="-1"></main>
+
+<!-- polite live region for route changes + analysis/recording announcements -->
+<div id="live" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
+<div id="liveAssertive" class="visually-hidden" aria-live="assertive" aria-atomic="true"></div>
+
+<script type="module" src="src/app/main.js"></script>
+
+<noscript>
+  <p style="padding:20px;color:#DCEBF7">SMILE Speech Signal Lab needs JavaScript enabled.</p>
+</noscript>
+</body>
+</html>

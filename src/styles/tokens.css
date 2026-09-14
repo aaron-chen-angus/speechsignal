@@ -1,0 +1,17 @@
+/* ==========================================================================
+   Design tokens — the established SMILE dark instrument palette, preserved
+   from the prototype. Background #04080F with radial navy washes, panels
+   rgba(9,23,40,.78), hairlines #12354F, cyan #22D3EE, ice #8FD8F0, green
+   #2DD4A7, amber #FBBF24, rose #FB7185, text #DCEBF7, dim #6F8CA6. System
+   sans for prose, ui-monospace for every number.
+   ========================================================================== */
+:root{
+  --bg:#04080F; --bg2:#071322; --panel:rgba(9,23,40,.78); --line:#12354F; --line2:#0C2438;
+  --cyan:#22D3EE; --cyan-d:#0E7490; --blue:#3B82F6; --ice:#8FD8F0;
+  --text:#DCEBF7; --dim:#6F8CA6; --green:#2DD4A7; --amber:#FBBF24; --red:#FB7185;
+  --mono:ui-monospace,"SF Mono","Cascadia Mono","Roboto Mono",Menlo,Consolas,monospace;
+  --sans:"Segoe UI",-apple-system,BlinkMacSystemFont,Roboto,"Helvetica Neue",Arial,sans-serif;
+  --gap:16px;
+  --radius:8px;
+  --maxw:1500px;
+}

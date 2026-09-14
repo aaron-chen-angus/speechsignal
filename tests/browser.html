@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SMILE Speech Signal Lab — test suite</title>
+<style>
+  body{font-family:ui-monospace,Menlo,Consolas,monospace;background:#04080F;color:#DCEBF7;margin:0;padding:24px;font-size:14px}
+  h1{font-size:18px;letter-spacing:.1em}
+  #summary{font-size:16px;font-weight:700;margin:14px 0}
+  .pass{color:#2DD4A7}.fail{color:#FB7185}
+  ul{list-style:none;padding:0}
+  li{padding:4px 0;border-bottom:1px solid #12354F}
+  .err{color:#FB7185;padding-left:24px;font-size:12px}
+  .ms{color:#6F8CA6}
+  button{background:#0B2438;border:1px solid #12354F;color:#8FD8F0;border-radius:6px;padding:8px 16px;cursor:pointer;font-family:inherit}
+</style>
+</head>
+<body>
+<h1>SMILE — DSP + app + browser test suite</h1>
+<p style="color:#6F8CA6">Serve this over http(s) (module workers / ES modules). Open the console for detail.</p>
+<div id="summary">running…</div>
+<ul id="results"></ul>
+
+<script type="module">
+  // shared specs (also run in Node) + browser-only specs
+  import './dsp.test.js';
+  import './app.test.js';
+  import './browser.test.js';
+  import { run } from './harness.js';
+
+  const list = document.getElementById('results');
+  const summaryEl = document.getElementById('summary');
+
+  const summary = await run((r) => {
+    const li = document.createElement('li');
+    li.innerHTML = (r.ok ? '<span class="pass">PASS</span> ' : '<span class="fail">FAIL</span> ') +
+      r.name + ' <span class="ms">(' + r.ms + ' ms)</span>';
+    if(!r.ok){ const e = document.createElement('div'); e.className='err'; e.textContent = r.error; li.appendChild(e); }
+    list.appendChild(li);
+  });
+
+  summaryEl.className = summary.failed ? 'fail' : 'pass';
+  summaryEl.textContent = `${summary.passed}/${summary.total} passed` + (summary.failed ? `, ${summary.failed} failed` : ' — all green');
+  window.__SMILE_TEST_SUMMARY__ = summary;
+</script>
+</body>
+</html>
