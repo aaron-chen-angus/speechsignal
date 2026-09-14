@@ -33,6 +33,17 @@ let liveCanvas = null, levelFill = null, clipEl = null;
 let liveHist = null;
 let activeTask = 'read';          // which task is the focus of the stepper
 let interimText = { read:'', free:'' };
+let thumbPlaying = null;          // { ac, src } while a captured clip is playing
+let thumbPlayBtn = null;          // the current clip play/stop button
+
+function stopThumb(){
+  if(thumbPlaying){
+    try { thumbPlaying.src.onended = null; thumbPlaying.src.stop(); } catch(e){}
+    try { thumbPlaying.ac.close(); } catch(e){}
+    thumbPlaying = null;
+  }
+  if(thumbPlayBtn) thumbPlayBtn.textContent = '\u25b6 Play';
+}
 
 function visibleTasks(){ return TASKS.filter(t => !t.optional || state.optVowel); }
 
@@ -190,8 +201,8 @@ export async function render(root){
 
     if(t.id !== 'vowel'){
       const playing = modelPlaying();
-      const playBtn = el('button',{ title:'Plays audio/'+state.lang+'_'+t.id+'.mp3 if present, otherwise a synthetic voice' },
-        playing ? 'Stop model' : 'Play model');
+      const playBtn = el('button',{ title:'Plays audio/'+state.lang+'_'+t.id+'.mp3 if present, otherwise a synthetic voice reading the script' },
+        playing ? '\u25a0 Stop instructions' : '\u25b6 Play instructions');
       playBtn.addEventListener('click', () => {
         if(modelPlaying()) stopModel(paintControls);
         else playModel(state.lang, t.id, undefined, paintControls);
@@ -218,6 +229,8 @@ export async function render(root){
   }
 
   function paintThumb(){
+    stopThumb();                 // stop any clip playback before rebuilding
+    thumbPlayBtn = null;
     thumbRow.innerHTML = '';
     const t = visibleTasks().find(x => x.id === activeTask);
     const a = state.audio[t.id];
@@ -225,15 +238,18 @@ export async function render(root){
     const cv = el('canvas',{'aria-label': taskName(t,L())+' waveform ('+a.dur.toFixed(1)+' seconds)', role:'img'});
     thumbRow.appendChild(cv);
     const playBtn = el('button',{}, '\u25b6 Play');
-    let src = null;
+    // play / stop toggle for the captured clip
     playBtn.addEventListener('click', () => {
-      if(src){ src=null; return; }
+      if(thumbPlaying){ stopThumb(); return; }
       const ac = new (window.AudioContext||window.webkitAudioContext)();
       const buf = ac.createBuffer(1, a.pcm.length, a.fs);
       buf.copyToChannel(a.pcm, 0);
       const s = ac.createBufferSource(); s.buffer = buf; s.connect(ac.destination); s.start();
-      s.onended = () => { try{ac.close();}catch{} };
+      thumbPlaying = { ac, src:s };
+      playBtn.textContent = '\u25a0 Stop';
+      s.onended = () => { if(thumbPlaying && thumbPlaying.src === s){ stopThumb(); } };
     });
+    thumbPlayBtn = playBtn;
     thumbRow.appendChild(playBtn);
     thumbRow.appendChild(el('span',{class:'dim', style:'font-size:12px'}, a.dur.toFixed(1) + 's captured'));
     // draw after in DOM
@@ -456,4 +472,5 @@ export function teardown(){
   // do NOT stop the mic on teardown — it must stay live across nav to results and back
   if(isRecording()){ stopASR(); stopRecording(); }
   stopModel();
+  stopThumb();
 }
