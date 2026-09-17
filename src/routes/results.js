@@ -25,6 +25,7 @@ import {
 } from '../app/scoring.js';
 import { drawRing, drawRadar, drawSlur, drawWave, drawSpec, drawF0 } from '../app/charts.js';
 import { exportAll } from '../app/export.js';
+import { sendToSheet, sheetConfigured } from '../app/sheet.js';
 
 export const title = 'Results';
 
@@ -390,6 +391,22 @@ export async function render(root){
     const exportBtn = el('button',{class:'go'}, 'Export JSON + CSV + WAV');
     exportBtn.addEventListener('click', () => { const stem = exportAll(); toast('Exported ' + stem); });
 
+    // Opt-in upload to a Google Sheet. Only rendered once the endpoint is
+    // configured in src/app/sheet.js. Sends the session over the network,
+    // so it is deliberately separate and never automatic.
+    const sheetBtn = el('button',{}, 'Send to Google Sheet');
+    sheetBtn.addEventListener('click', async () => {
+      sheetBtn.disabled = true; sheetBtn.textContent = 'Sending\u2026';
+      try {
+        const out = await sendToSheet();
+        toast('Sent to Google Sheet' + (out.parameters ? ' (' + out.parameters + ' parameters)' : ''));
+      } catch(err){
+        toast('Upload failed: ' + err.message);
+      } finally {
+        sheetBtn.disabled = false; sheetBtn.textContent = 'Send to Google Sheet';
+      }
+    });
+
     const baseFile = el('input',{type:'file', accept:'application/json', style:'max-width:230px;font-size:12px'});
     const baseState = el('p',{class:'dim', id:'baseState'}, state.baseline ? 'Baseline loaded.' : 'No baseline loaded.');
     baseFile.addEventListener('change', async e => {
@@ -408,8 +425,9 @@ export async function render(root){
 
     return el('section',{class:'panel'},
       el('h2',{class:'ptitle'}, 'Export & baseline'),
-      el('div',{class:'export-row'}, exportBtn),
+      el('div',{class:'export-row'}, exportBtn, sheetConfigured() ? sheetBtn : ''),
       el('p',{class:'dim', style:'font-size:12px'}, 'Per-task 16 kHz WAV, full JSON and a flat CSV. All data stays on this device \u2014 export is the only way the session leaves memory.'),
+      sheetConfigured() ? el('p',{class:'dim', style:'font-size:12px'}, 'Send to Google Sheet uploads this session\u2019s measurements to your configured Google Sheet. This is the one time data leaves the device over the network \u2014 use it only with the participant\u2019s consent.') : '',
       el('details',{open:true},
         el('summary',{}, 'Use this person\u2019s own baseline instead'),
         el('p',{}, 'Within-person change beats any population range. Export a session recorded when the person is well, then load it here.'),
