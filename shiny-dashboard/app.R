@@ -65,15 +65,40 @@ DOMAIN_COLS <- c(
 
 # ---- DATA LOADING --------------------------------------------------------
 # Robust load: tolerate the sheet being empty or a tab missing, coerce types.
+# Empty-but-typed templates so filter()/select() never fail on a missing
+# column before any data has loaded. Column names match the Apps Script.
+EMPTY_SESSIONS <- tibble(
+  receivedAt = as_datetime(character()), participant = character(),
+  age = character(), sex = character(), language = character(),
+  languageName = character(), timepoint = character(),
+  recordedAt = as_datetime(character()), analysisRate = double(),
+  inputRate = double(), script = character(), tool = character(),
+  version = character(), deviationIndex = double(),
+  domain_pronunciation = double(), domain_intonation = double(),
+  domain_fluency = double(), domain_voice = double(),
+  domain_clarity = double(), transcript_read = character(),
+  transcript_free = character(), sessionId = character()
+)
+EMPTY_PARAMS <- tibble(
+  receivedAt = as_datetime(character()), sessionId = character(),
+  participant = character(), timepoint = character(), language = character(),
+  recordedAt = as_datetime(character()), parameter = character(),
+  label = character(), value = double(), unit = character(),
+  task = character(), z = double(),
+  flag = factor(character(), levels = names(FLAG_COLS)),
+  provisional = integer()
+)
+
 load_data <- function() {
-  safe_read <- function(sheet) {
+  read_err <- NULL
+  safe_read <- function(sheet, empty) {
     out <- tryCatch(read_sheet(SHEET_URL, sheet = sheet),
-                    error = function(e) NULL)
-    if (is.null(out)) tibble() else out
+                    error = function(e) { read_err <<- conditionMessage(e); NULL })
+    if (is.null(out) || nrow(out) == 0) empty else out
   }
 
-  sessions   <- safe_read("sessions")
-  parameters <- safe_read("parameters")
+  sessions   <- safe_read("sessions", EMPTY_SESSIONS)
+  parameters <- safe_read("parameters", EMPTY_PARAMS)
 
   if (nrow(sessions) > 0) {
     sessions <- sessions %>%
@@ -96,16 +121,15 @@ load_data <- function() {
       )
   }
 
-  joined <- tibble()
-  if (nrow(parameters) > 0 && nrow(sessions) > 0) {
-    joined <- parameters %>%
-      left_join(
-        sessions %>% select(sessionId, deviationIndex, languageName, sex, age),
-        by = "sessionId"
-      )
-  }
+  # Always join so `joined` carries the parameter columns even when empty.
+  joined <- parameters %>%
+    left_join(
+      sessions %>% select(sessionId, deviationIndex, languageName, sex, age),
+      by = "sessionId"
+    )
 
-  list(sessions = sessions, parameters = parameters, joined = joined)
+  list(sessions = sessions, parameters = parameters, joined = joined,
+       error = read_err)
 }
 
 # ==========================================================================
@@ -125,6 +149,7 @@ ui <- page_navbar(
     width = 300,
     actionButton("refresh", "Reload from Google Sheet", class = "btn-primary btn-sm"),
     textOutput("lastLoaded"),
+    uiOutput("loadStatus"),
     hr(),
     selectizeInput("participants", "Participants",
                    choices = NULL, multiple = TRUE,
@@ -223,6 +248,20 @@ server <- function(input, output, session) {
 
   output$lastLoaded <- renderText({
     paste("Loaded", format(loadedAt(), "%Y-%m-%d %H:%M:%S"))
+  })
+
+  output$loadStatus <- renderUI({
+    d <- raw()
+    if (!is.null(d$error)) {
+      div(style = "margin-top:8px;padding:8px;border:1px solid #ef4444;border-radius:6px;background:#fef2f2;color:#7f1d1d;font-size:12px",
+          strong("Could not read the sheet:"), br(), d$error, br(), br(),
+          "If this mentions auth/permission, share the sheet as ",
+          strong("Anyone with the link (Viewer)"), " or switch to gs4_auth().")
+    } else {
+      div(style = "margin-top:8px;font-size:12px;color:#166534",
+          sprintf("Read OK: %d sessions, %d parameter rows.",
+                  nrow(d$sessions), nrow(d$parameters)))
+    }
   })
 
   # populate filter controls when data changes
@@ -335,12 +374,15 @@ server <- function(input, output, session) {
                       choices = if (nrow(d)) sort(unique(d$participant)) else character(0))
   })
   observeEvent(input$profileParticipant, {
-    d <- fsessions() %>% filter(participant == input$profileParticipant)
+    d <- fsessions()
+    req(nrow(d) > 0, "participant" %in% names(d),
+        !is.null(input$profileParticipant), nzchar(input$profileParticipant))
+    d <- d %>% filter(participant == input$profileParticipant)
     if (!nrow(d)) return()
     labs <- setNames(d$sessionId, format(d$recordedAt, "%Y-%m-%d %H:%M"))
     updateSelectInput(session, "profileSession", choices = labs,
                       selected = d$sessionId[which.max(d$recordedAt)])
-  })
+  }, ignoreInit = TRUE)
 
   output$profilePlot <- renderPlotly({
     d <- fparams()

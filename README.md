@@ -39,8 +39,9 @@ device**, and presents the results against published reference distributions.
 9. [Technical manual — architecture and tech stack](#9-technical-manual--architecture-and-tech-stack)
 10. [Running and deploying](#10-running-and-deploying)
 11. [Data retrieval and analysis](#11-data-retrieval-and-analysis)
-12. [References](#12-references)
-13. [Limitations and responsible use](#13-limitations-and-responsible-use)
+12. [Live cloud pipeline — Google Sheet and R Shiny dashboard](#12-live-cloud-pipeline--google-sheet-and-r-shiny-dashboard)
+13. [References](#13-references)
+14. [Limitations and responsible use](#14-limitations-and-responsible-use)
 
 ---
 
@@ -502,7 +503,10 @@ beside its colour (within range / borderline / outside range).
 
 - **No network calls at runtime** except the browser's own `SpeechRecognition`
   service and loading local files from `audio/`. No CDN, no web fonts, no
-  analytics, no telemetry.
+  analytics, no telemetry. **Exception:** if the optional Google Sheet pipeline
+  is configured (§12), the Results page transmits the session's *measurements*
+  (never audio) to a Google Sheet, with a consent notice shown on screen. This
+  is off unless a `SHEET_ENDPOINT` is set in `src/app/sheet.js`.
 - **Nothing is written to** `localStorage`, `sessionStorage`, `IndexedDB` or any
   persistent store. A session lives only in memory and leaves only through
   explicit export. The app warns before unload if recordings are unexported.
@@ -529,6 +533,7 @@ src/
     charts.js              canvas charts (waveform, spectrogram, pitch, radar, ring, slur)
     scoring.js             rows, z-scores, domain scores, deviation index, slur placement
     export.js              JSON + CSV + WAV export; contour stripping
+    sheet.js               optional opt-in Google Sheet upload (§12); off by default
     ui.js                  DOM helper, number formatter, toast
   routes/
     session.js  record.js  results.js  method.js
@@ -536,7 +541,8 @@ src/
     tokens.css  app.css  routes.css
 tests/                     synthetic signals, harness, DSP + app + browser specs
 audio/                     optional native-speaker model recordings (empty by default)
-reference/                 the source-of-truth prototype + notes
+reference/                 prototype + notes + google-apps-script.gs (Sheet receiver, §12)
+shiny-dashboard/           R Shiny dashboard (app.R + README) for the Google Sheet (§12)
 ```
 
 ### 9.5 The DSP port and its verification
@@ -706,7 +712,252 @@ single tidy table; the exports already contain everything needed for that.)*
 
 ---
 
-## 12. References
+## 12. Live cloud pipeline — Google Sheet and R Shiny dashboard
+
+Sections 10 and 11 describe the tool's default, fully offline behaviour: nothing
+leaves the device except through the **Export** button. This section documents
+an **optional, opt-in** addition that streams each session's measurements to a
+Google Sheet and visualises the aggregated data in an R Shiny dashboard hosted
+on shinyapps.io.
+
+> ### ⚠️ This changes the privacy model — read first
+>
+> The core app makes **no network calls at runtime** (§9.3). Enabling this
+> pipeline means a session's *measurements* (not audio) are transmitted over
+> the network to a Google Sheet you control. **Audio is never uploaded** — the
+> WAV files still only leave the device through the manual Export button. What
+> is sent is the metadata, the domain and deviation scores, the transcripts and
+> the long-format parameter table. Because personal data now leaves the device,
+> this feature must be used **only with the participant's informed consent**,
+> and the Results screen shows a notice to that effect. No field transmitted is
+> a diagnosis, a stroke probability, a health grade or a confidence score.
+
+### 12.1 Architecture
+
+```
+Browser (Results page)                Google                     shinyapps.io
+┌───────────────────┐   HTTPS POST   ┌────────────────────┐     ┌──────────────┐
+│ src/app/sheet.js  │ ─────────────▶ │ Apps Script Web App│ ──▶ │ R Shiny app  │
+│ (fires on results │  (no-cors,     │ doPost() appends   │ read│ googlesheets4│
+│  render, once per │  text/plain)   │ rows to the Sheet  │◀────│ read_sheet() │
+│  session)         │                │                    │     │ ggplot/plotly│
+└───────────────────┘                └────────────────────┘     └──────────────┘
+                                              │
+                                              ▼
+                                     Google Sheet (2 tabs)
+                                     • sessions   (1 row/session)
+                                     • parameters (1 row/parameter)
+```
+
+- **Client** (`src/app/sheet.js`) builds a trimmed copy of the export payload
+  (§11.1) and POSTs it when the Results page renders, exactly once per session.
+- **Receiver** (a Google Apps Script Web App) parses the JSON and appends rows
+  to two tabs of a Google Sheet.
+- **Dashboard** (an R Shiny app) reads both tabs live, joins them, and renders
+  interactive charts.
+
+The reference copies of the two server-side artefacts live in the repo for
+version control:
+
+- `reference/google-apps-script.gs` — the Apps Script receiver code.
+- `shiny-dashboard/app.R` + `shiny-dashboard/README.md` — the dashboard.
+
+### 12.2 The live resources
+
+| Resource | URL |
+|---|---|
+| **Google Sheet** (data store) | https://docs.google.com/spreadsheets/d/1JVTT4_wByF--IdQxlPJt-akq82RAgJ61w9A021IJzLw/edit |
+| **R Shiny dashboard** (visualisation) | https://smile-rp.shinyapps.io/SMILE-SpeechSignal/ |
+
+The Sheet must be shared **Anyone with the link → Viewer** for the dashboard to
+read it without a service-account key (see §12.6).
+
+### 12.3 Client side — how the app sends data
+
+Two files in the app implement the upload:
+
+- **`src/app/sheet.js`** — holds the configuration and the send logic:
+  - `SHEET_ENDPOINT` — the Apps Script Web App `/exec` URL.
+  - `SHEET_TOKEN` — an optional shared secret; must match `SHARED_TOKEN` in the
+    Apps Script. Leave both `''` to disable the check.
+  - `sheetConfigured()` — returns `true` only when a valid `/exec` URL is set,
+    which is what gates the whole feature.
+  - `autoSendKey(participant, res)` — a stable per-session fingerprint so the
+    same session is never sent twice.
+  - `sendToSheet()` — POSTs in `mode:'no-cors'` with `Content-Type:text/plain`.
+    Apps Script Web Apps do not return CORS headers, so the request is sent
+    "blind": the row is written, but the browser cannot read the reply. This is
+    expected and is why the success toast confirms only that the request *left*
+    the browser, not that Google definitely wrote it.
+- **`src/routes/results.js`** — calls `maybeAutoSend()` when the Results page
+  renders and whenever analysis completes while on that page. It is guarded so
+  it fires only when the endpoint is configured, the reading task is analysed,
+  analysis is not still running, and the session has not already been sent.
+
+**The single field to configure** is `SHEET_ENDPOINT` in `src/app/sheet.js`.
+After changing it, redeploy the changed files to GitHub Pages (§10.2) and
+hard-refresh (Ctrl+F5).
+
+### 12.4 Server side — the Google Apps Script receiver
+
+Source of truth: `reference/google-apps-script.gs`.
+
+**Set-up:**
+
+1. Open the Google Sheet → **Extensions → Apps Script**.
+2. Paste the contents of `reference/google-apps-script.gs`, replacing the
+   sample code. Save (Ctrl+S).
+3. Deploy: **Deploy → New deployment → type: Web app**, **Execute as: Me**,
+   **Who has access: Anyone**. Copy the `/exec` URL.
+4. Authorise on first run: pick a function (e.g. `doGet`) → **Run** → approve
+   the permission prompt (your account → Advanced → Go to project (unsafe) →
+   Allow).
+5. **After any edit to the script**, redeploy a new version:
+   **Deploy → Manage deployments → Edit (pencil) → Version: New version →
+   Deploy** — otherwise the old code keeps serving.
+
+**Self-test without the app** — paste this at the bottom of the script,
+select `selfTest` in the function dropdown, and Run:
+
+```javascript
+function selfTest() {
+  doPost({ postData: { contents: JSON.stringify({
+    meta: { participant:'TEST-001', recordedAt:new Date().toISOString(),
+            language:'en', languageName:'English', timepoint:'baseline',
+            analysisRate:16000, inputRate:48000, tool:'SMILE', version:'2.1' },
+    deviationIndex: 42,
+    domains: { pronunciation:{score:80}, intonation:{score:70}, fluency:{score:65},
+               voice:{score:75}, clarity:{score:60} },
+    transcripts: { read:'test', free:'test' },
+    flags: [{ parameter:'articulationRate', label:'Articulation rate', value:3.1,
+              unit:'syll/s', fromTask:'read', z:2.4, flag:'watch', provisional:false }]
+  }) } });
+}
+```
+
+If a `TEST-001` row appears in both tabs, the server side is correct and any
+remaining failure is browser-side (CORS), which the `no-cors` client already
+handles.
+
+The script auto-creates two tabs on first write and sets their header rows:
+
+**`sessions`** (one row per session):
+
+```
+receivedAt, participant, age, sex, language, languageName, timepoint,
+recordedAt, analysisRate, inputRate, script, tool, version, deviationIndex,
+domain_pronunciation, domain_intonation, domain_fluency, domain_voice,
+domain_clarity, transcript_read, transcript_free, sessionId
+```
+
+**`parameters`** (one row per scored parameter — the full data dictionary):
+
+```
+receivedAt, sessionId, participant, timepoint, language, recordedAt,
+parameter, label, value, unit, task, z, flag, provisional
+```
+
+The two tabs join on **`sessionId`** (`participant__recordedAt`).
+
+### 12.5 Why two tabs and long format (and not one wide sheet)
+
+The `parameters` tab is deliberately in **tidy/long format** — one row per
+measurement — because that is the shape R's tidyverse and ggplot2 are built for.
+Plotting all parameters, faceting by participant, or colouring by flag is a
+one-line operation on long data. Flattening to one wide row per session
+(`articulationRate_value`, `articulationRate_z`, …) would force the dashboard to
+pivot the data back to long on every render — more work, not less. The
+`sessions` tab is the wide "header" companion for session-level charts. This is
+a normal relational split and is the recommended structure for downstream
+analysis.
+
+### 12.6 The R Shiny dashboard
+
+Source: `shiny-dashboard/app.R` (single-file Shiny app) with its own
+`shiny-dashboard/README.md`. Hosted at
+https://smile-rp.shinyapps.io/SMILE-SpeechSignal/.
+
+**What it shows:**
+
+- **Overview** — KPI boxes (session count, participant count, median deviation
+  index, flagged-parameter count), deviation index over time, its histogram with
+  the 25/50 interpretation bands, average domain scores, and the ok/watch/out
+  flag breakdown.
+- **Parameter profile** — every parameter's z-score for a chosen session,
+  coloured by flag, with the ±2 reference edges drawn in.
+- **Parameter trends** — any single parameter (raw value or z) over time, per
+  participant — the longitudinal within-person view (§3.3).
+- **Domain trends** — the five domain scores over time, faceted by participant.
+- **Data** — searchable raw `sessions` and long `parameters` tables.
+
+All tabs respond to the sidebar filters (participants, language, date range),
+and a **Reload from Google Sheet** button pulls new sessions without restarting.
+
+**Required R packages:**
+
+```r
+install.packages(c(
+  "shiny", "bslib", "bsicons", "googlesheets4", "dplyr", "tidyr",
+  "ggplot2", "plotly", "DT", "lubridate", "scales", "stringr"
+))
+```
+
+**Authentication.** The dashboard reads a public sheet with `gs4_deauth()`, so
+the Sheet must be shared **Anyone with the link → Viewer**. If the Sheet must
+stay private, use a Google Cloud **service account**: create a JSON key, share
+the Sheet with the service account's email (Viewer), place the JSON in
+`shiny-dashboard/`, and replace `gs4_deauth()` with
+`gs4_auth(path = "service-account.json")`. Deploy the JSON with the app and
+never commit it to a public repo.
+
+**Configuration.** The target Sheet is set once at the top of `app.R`:
+
+```r
+SHEET_URL <- "https://docs.google.com/spreadsheets/d/1JVTT4_wByF--IdQxlPJt-akq82RAgJ61w9A021IJzLw/edit"
+```
+
+**Run locally:** open `app.R` in RStudio → **Run App**, or
+`shiny::runApp("shiny-dashboard")`.
+
+**Deploy to shinyapps.io:**
+
+```r
+install.packages("rsconnect")
+# name/token/secret from your shinyapps.io account -> Tokens
+rsconnect::setAccountInfo(name = "smile-rp", token = "...", secret = "...")
+rsconnect::deployApp("shiny-dashboard", appName = "SMILE-SpeechSignal")
+```
+
+The whole `shiny-dashboard/` folder deploys as one app.
+
+### 12.7 End-to-end setup checklist
+
+1. Create/open the Google Sheet; paste `reference/google-apps-script.gs` into
+   its Apps Script editor; deploy as a Web app (Execute as **Me**, access
+   **Anyone**); copy the `/exec` URL.
+2. Authorise the script and run `selfTest` to confirm rows land in both tabs.
+3. Put the `/exec` URL into `SHEET_ENDPOINT` in `src/app/sheet.js`.
+4. Redeploy the changed app files (`src/app/sheet.js`, `src/routes/results.js`)
+   to GitHub Pages; hard-refresh the live app.
+5. Run a real session; on the Results page it auto-sends; confirm a row lands
+   in the Sheet.
+6. Share the Sheet **Anyone with the link → Viewer**.
+7. Set `SHEET_URL` in `shiny-dashboard/app.R`; run locally; then
+   `rsconnect::deployApp("shiny-dashboard")` to publish to shinyapps.io.
+
+### 12.8 Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| No "sent" toast; nothing in Sheet | App files not redeployed, or browser cache | Redeploy `sheet.js`/`results.js`; hard-refresh (Ctrl+F5) |
+| Toast shows "sent" but Sheet is empty | Apps Script not authorised, or deployment not updated to a new version | Run `selfTest`; redeploy a **new version** |
+| Dashboard shows 0 sessions but the Sheet has data | Sheet not shared publicly, so `gs4_deauth()` read is denied on the server | Share **Anyone with the link → Viewer**, or switch to a service account |
+| Dashboard error `object 'participant' not found` | Empty read returned before typed fallback | Fixed in `app.R` (typed empty tibbles + guarded observers); reload the app |
+| Charts empty though status says "Read OK" | Date-range filter excludes the rows | Widen the date range in the sidebar |
+
+---
+
+## 13. References
 
 The reference distributions, cut-offs and methods are drawn from the following
 published work (as embedded in `src/data/slur.js`, `src/data/reference.js` and
@@ -760,7 +1011,7 @@ for full detail.
 
 ---
 
-## 13. Limitations and responsible use
+## 14. Limitations and responsible use
 
 - **Not diagnostic.** No output is a diagnosis, a stroke probability, a
   speech-health grade, or a confidence score.
