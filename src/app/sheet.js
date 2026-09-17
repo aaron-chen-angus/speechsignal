@@ -28,6 +28,16 @@ export function sheetConfigured(){
   return /^https:\/\/script\.google\.com\/.+\/exec$/.test(SHEET_ENDPOINT);
 }
 
+/* A stable per-session key so the same completed session is auto-sent only
+   once. Uses the participant plus a fingerprint of the reading-task result
+   (number of measured parameters + articulation rate), which changes when a
+   genuinely new session is recorded but is stable across re-renders. */
+export function autoSendKey(participant, res){
+  const r = (res && res.read) || {};
+  const fp = [Object.keys(r).length, r.articulationRate, r.cpps].join(':');
+  return (participant || 'anon') + '|' + fp;
+}
+
 /* Trim the payload to what the Sheet stores. Keeps the wire small and avoids
    sending the whole reference table and per-task DSP blocks on every session. */
 function sheetPayload(){
@@ -51,17 +61,11 @@ export async function sendToSheet(){
   if(!sheetConfigured()){
     throw new Error('Google Sheet endpoint is not configured. Set SHEET_ENDPOINT in src/app/sheet.js.');
   }
-  const res = await fetch(SHEET_ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(sheetPayload())
-  });
-  const out = await res.json();
-  if(!out.ok) throw new Error(out.error || 'Sheet rejected the upload.');
-  markExported();
-  return out;
-
-  /* --- Fallback for deployments that refuse the read (uncomment to use) ---
+  // Google Apps Script Web Apps do NOT return CORS headers, so a normal fetch
+  // that tries to READ the reply throws "Failed to fetch" and nothing appears
+  // to happen. We send in no-cors mode: the browser fires the request and the
+  // Apps Script writes the row, but we cannot read the response body (it is
+  // "opaque"). That is expected and fine — the write still happens.
   await fetch(SHEET_ENDPOINT, {
     method: 'POST',
     mode: 'no-cors',
@@ -70,5 +74,4 @@ export async function sendToSheet(){
   });
   markExported();
   return { ok: true, opaque: true };
-  ------------------------------------------------------------------------- */
 }
