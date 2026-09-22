@@ -45,14 +45,23 @@ library(lubridate)
 library(scales)
 library(stringr)
 
+# NAMESPACE SAFETY (do not remove):
+# plotly/DT pull in jsonlite, whose validate()/need-adjacent exports can mask
+# shiny::validate on the search path depending on load order, breaking every
+# validate(need(...)) guard with "is.character(txt) is not TRUE" or
+# "unused argument (need(...))". Pin them to shiny explicitly.
+validate <- shiny::validate
+need     <- shiny::need
+
 # ---- CONFIG --------------------------------------------------------------
 SHEET_URL <- "https://docs.google.com/spreadsheets/d/1JVTT4_wByF--IdQxlPJt-akq82RAgJ61w9A021IJzLw/edit"
 
 # Public read-only sheet -> no login. Comment out and use gs4_auth() if private.
 gs4_deauth()
 
-# Flag colours reused across every chart
-FLAG_COLS <- c(ok = "#22c55e", watch = "#f59e0b", out = "#ef4444")
+# Flag colours reused across every chart (TRON semantic palette:
+# ok = success green, watch = warning yellow, out = danger red)
+FLAG_COLS <- c(ok = "#00e676", watch = "#ffcc00", out = "#ff3333")
 FLAG_LABS <- c(ok = "Within range", watch = "Borderline", out = "Outside range")
 
 DOMAIN_COLS <- c(
@@ -62,6 +71,43 @@ DOMAIN_COLS <- c(
   domain_voice         = "Voice quality",
   domain_clarity       = "Clarity"
 )
+
+# ---- THEME HELPERS (cosmetic only) --------------------------------------
+# TRON palette constants for plots.
+TRON_CYAN   <- "#00e5ff"   # secondary / accent series
+TRON_ORANGE <- "#ff6b00"   # primary emphasis series
+TRON_MUTED  <- "#6b7a99"   # axis text / muted reference lines
+TRON_GRID   <- "rgba(0,229,255,0.10)"
+
+# Dark ggplot theme so plots sit on the dark cards. Purely visual: no change
+# to data, axes meaning, or which chart shows what.
+theme_tron <- function(base_size = 13) {
+  theme_minimal(base_size = base_size) +
+    theme(
+      plot.background  = element_rect(fill = "#0d1526", colour = NA),
+      panel.background = element_rect(fill = "#0d1526", colour = NA),
+      panel.grid.major = element_line(colour = "#123048"),
+      panel.grid.minor = element_line(colour = "#0e2438"),
+      text        = element_text(colour = "#e8eaf0"),
+      axis.text   = element_text(colour = TRON_MUTED),
+      axis.title  = element_text(colour = "#e8eaf0"),
+      legend.text = element_text(colour = "#e8eaf0"),
+      strip.text  = element_text(colour = TRON_CYAN)
+    )
+}
+
+# Style a plotly object with dark backgrounds. Per the R Shiny safeguard: do
+# NOT set a font family containing spaces/commas here (schema errors) — only
+# set font colour and solid hex backgrounds.
+style_plotly <- function(p) {
+  p |>
+    layout(
+      paper_bgcolor = "#0d1526",
+      plot_bgcolor  = "#0d1526",
+      font   = list(color = "#e8eaf0"),
+      legend = list(font = list(color = "#e8eaf0"))
+    )
+}
 
 # ---- DATA LOADING --------------------------------------------------------
 # Robust load: tolerate the sheet being empty or a tab missing, coerce types.
@@ -137,11 +183,49 @@ load_data <- function() {
 # ==========================================================================
 ui <- page_navbar(
   title = "SMILE Speech Signal",
-  theme = bs_theme(version = 5, bootswatch = "flatly", primary = "#0ea5e9"),
+  # TRON / Virtual BlazePod theme: deep space black canvas, neon orange
+  # primary, neon cyan secondary, Orbitron headings + Exo 2 body.
+  theme = bs_theme(
+    version = 5,
+    bg = "#050810", fg = "#e8eaf0",
+    primary = "#ff6b00", secondary = "#00e5ff",
+    success = "#00e676", warning = "#ffcc00", danger = "#ff3333",
+    base_font    = font_google("Exo 2"),
+    heading_font = font_google("Orbitron"),
+    "border-color" = "rgba(0,229,255,0.18)",
+    "body-bg"     = "#050810",
+    "card-bg"     = "#0d1526",
+    "card-cap-bg" = "#111d35"
+  ),
 
   header = tagList(
-    div(style = "padding:8px 14px;background:#fff7ed;border-bottom:1px solid #fed7aa;font-size:13px;color:#7c2d12",
-        strong("Not a diagnostic tool. "),
+    # Decorative TRON grid + neon chrome. Cosmetic only; pointer-events:none
+    # on the grid so it never intercepts clicks.
+    tags$head(tags$style(HTML("
+      body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+        background-image:linear-gradient(rgba(0,229,255,0.07) 1px,transparent 1px),
+          linear-gradient(90deg,rgba(0,229,255,0.07) 1px,transparent 1px);
+        background-size:40px 40px;}
+      .navbar,.card,.bslib-sidebar-layout,main,.tab-content{position:relative;z-index:1;}
+      .navbar-brand{font-family:'Orbitron',sans-serif;text-transform:uppercase;
+        letter-spacing:.14em;text-shadow:0 0 12px rgba(0,229,255,0.5),0 0 28px rgba(0,229,255,0.2);}
+      .card{background:#0d1526;border:1px solid rgba(0,229,255,0.18);border-top:2px solid #ff6b00;
+        box-shadow:0 0 22px rgba(0,229,255,0.06);}
+      .card-header{background:#111d35;font-family:'Orbitron',sans-serif;text-transform:uppercase;
+        letter-spacing:.08em;font-size:12px;color:#00e5ff;}
+      .value-box .value-box-title{font-family:'Orbitron',sans-serif;text-transform:uppercase;
+        letter-spacing:.06em;color:#6b7a99;}
+      .value-box .value-box-value{font-family:'Orbitron',sans-serif;color:#fff;
+        text-shadow:0 0 12px rgba(0,229,255,0.3);}
+      .btn-primary{box-shadow:0 0 12px rgba(255,107,0,0.6),0 0 30px rgba(255,107,0,0.25);
+        color:#1a0d00;font-family:'Orbitron',sans-serif;text-transform:uppercase;letter-spacing:.06em;}
+      .nav-link,.form-label{letter-spacing:.03em;}
+      .form-control:focus,.selectize-input.focus{border-color:#ff6b00 !important;
+        box-shadow:0 0 0 2px rgba(255,107,0,0.25) !important;}
+      table.dataTable{color:#e8eaf0;}
+    "))),
+    div(style = "padding:8px 14px;background:rgba(58,0,0,0.85);border-bottom:1px solid #ff3333;font-size:13px;color:#ffd7d7;position:relative;z-index:1",
+        strong(style = "color:#ff8a8a", "Not a diagnostic tool. "),
         "These are acoustic measurements and their distance from published reference distributions, not a diagnosis, probability or grade.")
   ),
 
@@ -253,12 +337,12 @@ server <- function(input, output, session) {
   output$loadStatus <- renderUI({
     d <- raw()
     if (!is.null(d$error)) {
-      div(style = "margin-top:8px;padding:8px;border:1px solid #ef4444;border-radius:6px;background:#fef2f2;color:#7f1d1d;font-size:12px",
+      div(style = "margin-top:8px;padding:8px;border:1px solid #ff3333;border-radius:6px;background:rgba(58,0,0,0.85);color:#ffd7d7;font-size:12px",
           strong("Could not read the sheet:"), br(), d$error, br(), br(),
           "If this mentions auth/permission, share the sheet as ",
           strong("Anyone with the link (Viewer)"), " or switch to gs4_auth().")
     } else {
-      div(style = "margin-top:8px;font-size:12px;color:#166534",
+      div(style = "margin-top:8px;font-size:12px;color:#00e676",
           sprintf("Read OK: %d sessions, %d parameter rows.",
                   nrow(d$sessions), nrow(d$parameters)))
     }
@@ -325,18 +409,18 @@ server <- function(input, output, session) {
       geom_line(alpha = .7) + geom_point(size = 2.5) +
       scale_y_continuous(limits = c(0, 100)) +
       labs(x = NULL, y = "Deviation index") +
-      theme_minimal(base_size = 13)
-    ggplotly(p, tooltip = "text")
+      theme_tron(base_size = 13)
+    style_plotly(ggplotly(p, tooltip = "text"))
   })
 
   output$devHist <- renderPlotly({
     d <- fsessions(); validate(need(nrow(d) > 0, "No sessions match the filters."))
     p <- ggplot(d, aes(deviationIndex)) +
-      geom_histogram(binwidth = 5, fill = "#0ea5e9", colour = "white") +
-      geom_vline(xintercept = c(25, 50), linetype = "dashed", colour = "#64748b") +
+      geom_histogram(binwidth = 5, fill = TRON_CYAN, colour = "#050810") +
+      geom_vline(xintercept = c(25, 50), linetype = "dashed", colour = TRON_MUTED) +
       labs(x = "Deviation index", y = "Sessions") +
-      theme_minimal(base_size = 13)
-    ggplotly(p)
+      theme_tron(base_size = 13)
+    style_plotly(ggplotly(p))
   })
 
   output$domainBar <- renderPlotly({
@@ -347,11 +431,11 @@ server <- function(input, output, session) {
       mutate(domain = DOMAIN_COLS[domain])
     p <- ggplot(dm, aes(reorder(domain, score), score,
                         text = paste0(domain, "<br>Mean ", round(score)))) +
-      geom_col(fill = "#0ea5e9") + coord_flip() +
+      geom_col(fill = TRON_CYAN) + coord_flip() +
       scale_y_continuous(limits = c(0, 100)) +
       labs(x = NULL, y = "Mean domain score") +
-      theme_minimal(base_size = 13)
-    ggplotly(p, tooltip = "text")
+      theme_tron(base_size = 13)
+    style_plotly(ggplotly(p, tooltip = "text"))
   })
 
   output$flagBar <- renderPlotly({
@@ -363,8 +447,8 @@ server <- function(input, output, session) {
       scale_fill_manual(values = FLAG_COLS, guide = "none") +
       scale_x_discrete(labels = FLAG_LABS) +
       labs(x = NULL, y = "Count") +
-      theme_minimal(base_size = 13)
-    ggplotly(p, tooltip = "text")
+      theme_tron(base_size = 13)
+    style_plotly(ggplotly(p, tooltip = "text"))
   })
 
   # ---- Parameter profile --------------------------------------------------
@@ -395,11 +479,11 @@ server <- function(input, output, session) {
                                       " ", unit, "<br>z ", round(z, 2),
                                       "<br>", FLAG_LABS[as.character(flag)]))) +
       geom_col() + coord_flip() +
-      geom_hline(yintercept = c(-2, 2), linetype = "dashed", colour = "#94a3b8") +
+      geom_hline(yintercept = c(-2, 2), linetype = "dashed", colour = TRON_MUTED) +
       scale_fill_manual(values = FLAG_COLS, labels = FLAG_LABS, name = NULL) +
       labs(x = NULL, y = "z  (±2 = edge of reference range)") +
-      theme_minimal(base_size = 12)
-    ggplotly(p, tooltip = "text")
+      theme_tron(base_size = 12)
+    style_plotly(ggplotly(p, tooltip = "text"))
   })
 
   # ---- Parameter trends ---------------------------------------------------
@@ -421,10 +505,10 @@ server <- function(input, output, session) {
                                       "<br>", round(.data[[yvar]], 3)))) +
       geom_line(alpha = .7) + geom_point(size = 2.5) +
       labs(x = NULL, y = ylab) +
-      theme_minimal(base_size = 13)
+      theme_tron(base_size = 13)
     if (yvar == "z") p <- p + geom_hline(yintercept = c(-2, 2),
-                                          linetype = "dashed", colour = "#94a3b8")
-    ggplotly(p, tooltip = "text")
+                                          linetype = "dashed", colour = TRON_MUTED)
+    style_plotly(ggplotly(p, tooltip = "text"))
   })
 
   # ---- Domain trends ------------------------------------------------------
@@ -441,8 +525,8 @@ server <- function(input, output, session) {
       facet_wrap(~ participant) +
       scale_y_continuous(limits = c(0, 100)) +
       labs(x = NULL, y = "Domain score", colour = NULL) +
-      theme_minimal(base_size = 12)
-    ggplotly(p, tooltip = "text")
+      theme_tron(base_size = 12)
+    style_plotly(ggplotly(p, tooltip = "text"))
   })
 
   # ---- Data tables --------------------------------------------------------

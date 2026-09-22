@@ -19,23 +19,23 @@ export function fit(c){
   return { g, w:b.width, h:b.height };
 }
 function grid(g,w,h,rows,cols){
-  g.strokeStyle='#0D2942'; g.lineWidth=1;
+  g.strokeStyle='rgba(0,229,255,0.10)'; g.lineWidth=1;
   for(let i=1;i<rows;i++){const y=Math.round(h*i/rows)+.5;g.beginPath();g.moveTo(0,y);g.lineTo(w,y);g.stroke();}
   for(let i=1;i<cols;i++){const x=Math.round(w*i/cols)+.5;g.beginPath();g.moveTo(x,0);g.lineTo(x,h);g.stroke();}
 }
 
 export function drawWave(c, pcm){
   const { g,w,h } = fit(c);
-  g.fillStyle='#030A12'; g.fillRect(0,0,w,h); grid(g,w,h,4,8);
+  g.fillStyle='#050810'; g.fillRect(0,0,w,h); grid(g,w,h,4,8);
   const N=Math.max(1,Math.floor(pcm.length/w));
-  g.strokeStyle='#22D3EE'; g.lineWidth=1; g.beginPath();
+  g.strokeStyle='#00e5ff'; g.lineWidth=1; g.beginPath();
   for(let x=0;x<w;x++){
     let mx=0; const s=x*N;
     for(let i=0;i<N;i++){const v=Math.abs(pcm[s+i]||0); if(v>mx)mx=v;}
     const a=mx*h*0.46; g.moveTo(x+.5,h/2-a); g.lineTo(x+.5,h/2+a);
   }
   g.stroke();
-  g.strokeStyle='rgba(34,211,238,.25)'; g.beginPath(); g.moveTo(0,h/2+.5); g.lineTo(w,h/2+.5); g.stroke();
+  g.strokeStyle='rgba(0,229,255,.25)'; g.beginPath(); g.moveTo(0,h/2+.5); g.lineTo(w,h/2+.5); g.stroke();
 }
 
 function heat(t){
@@ -45,7 +45,7 @@ function heat(t){
 }
 export function drawSpec(c, pcm){
   const { g,w,h } = fit(c);
-  g.fillStyle='#030A12'; g.fillRect(0,0,w,h);
+  g.fillStyle='#050810'; g.fillRect(0,0,w,h);
   const sg=DSP.spectrogram(pcm,FS,{winMs:25,hopMs:Math.max(6,Math.round(pcm.length/FS*1000/Math.max(1,w*1.2))),maxHz:8000});
   if(!sg.cols.length) return;
   const img=g.createImageData(Math.round(w),Math.round(h));
@@ -66,18 +66,18 @@ export function drawSpec(c, pcm){
   const tmp=document.createElement('canvas'); tmp.width=img.width; tmp.height=img.height;
   tmp.getContext('2d').putImageData(img,0,0);
   g.drawImage(tmp,0,0,w,h);
-  g.strokeStyle='rgba(18,53,79,.8)'; g.lineWidth=1;
+  g.strokeStyle='rgba(0,229,255,.18)'; g.lineWidth=1;
   for(let k=1;k<4;k++){const y=Math.round(h*k/4)+.5;g.beginPath();g.moveTo(0,y);g.lineTo(w,y);g.stroke();}
-  g.fillStyle='#7FA6C2'; g.font='10px '+cssVar('--mono');
+  g.fillStyle='#6b7a99'; g.font='10px '+cssVar('--mono');
   for(let k=1;k<4;k++) g.fillText((8-2*k)+' kHz',5,h*k/4-3);
 }
 
 export function drawF0(c, res){
   const { g,w,h } = fit(c);
-  g.fillStyle='#030A12'; g.fillRect(0,0,w,h); grid(g,w,h,4,8);
+  g.fillStyle='#050810'; g.fillRect(0,0,w,h); grid(g,w,h,4,8);
   const ct=res&&res.contours; if(!ct){ return {}; }
   const db=ct.intensity, n=db.length;
-  g.strokeStyle='rgba(59,130,246,.6)'; g.lineWidth=1.4; g.beginPath();
+  g.strokeStyle='rgba(0,229,255,.6)'; g.lineWidth=1.4; g.beginPath();
   let lo=1e9,hi=-1e9; db.forEach(v=>{if(isFinite(v)){if(v<lo)lo=v;if(v>hi)hi=v;}});
   hi=Math.max(hi,lo+6); lo=Math.max(lo,hi-45);
   db.forEach((v,i)=>{const x=i/n*w, y=h-(Math.max(lo,Math.min(hi,v))-lo)/(hi-lo)*h*0.9-2; i?g.lineTo(x,y):g.moveTo(x,y);});
@@ -85,7 +85,7 @@ export function drawF0(c, res){
   const f0=ct.f0, m=f0.length;
   const vals=f0.filter(v=>v>0); if(!vals.length) return {};
   const fmin=Math.max(50,Math.min(...vals)*0.85), fmax=Math.min(420,Math.max(...vals)*1.1);
-  g.strokeStyle='#2DD4A7'; g.lineWidth=2; g.lineCap='round';
+  g.strokeStyle='#ff6b00'; g.lineWidth=2; g.lineCap='round';
   let pen=false;
   g.beginPath();
   f0.forEach((v,i)=>{
@@ -103,10 +103,10 @@ export function drawRadar(c, dom){
   const cx=w/2, cy=h/2+4, R=Math.min(w,h)/2-34, N=DOMAINS.length;
   const pt=(i,r)=>{const a=-Math.PI/2+i*2*Math.PI/N; return [cx+Math.cos(a)*r,cy+Math.sin(a)*r];};
   for(let ring=1;ring<=4;ring++){
-    g.strokeStyle=ring===4?'#1B4A6B':'#10314A'; g.lineWidth=1; g.beginPath();
+    g.strokeStyle=ring===4?'rgba(0,229,255,.35)':'rgba(0,229,255,.14)'; g.lineWidth=1; g.beginPath();
     for(let i=0;i<=N;i++){const [x,y]=pt(i%N,R*ring/4); i?g.lineTo(x,y):g.moveTo(x,y);} g.closePath(); g.stroke();
   }
-  g.strokeStyle='#10314A';
+  g.strokeStyle='rgba(0,229,255,.14)';
   for(let i=0;i<N;i++){const [x,y]=pt(i,R); g.beginPath(); g.moveTo(cx,cy); g.lineTo(x,y); g.stroke();}
   const vals=DOMAINS.map(([k])=>dom[k]?dom[k].score/100:0);
   if(vals.some(v=>v>0)){
@@ -114,12 +114,12 @@ export function drawRadar(c, dom){
     vals.forEach((v,i)=>{const [x,y]=pt(i,R*Math.max(0.04,v)); i?g.lineTo(x,y):g.moveTo(x,y);});
     g.closePath();
     const grd=g.createLinearGradient(cx-R,cy-R,cx+R,cy+R);
-    grd.addColorStop(0,'rgba(34,211,238,.30)'); grd.addColorStop(1,'rgba(45,212,167,.22)');
+    grd.addColorStop(0,'rgba(0,229,255,.30)'); grd.addColorStop(1,'rgba(255,107,0,.22)');
     g.fillStyle=grd; g.fill();
-    g.strokeStyle='#22D3EE'; g.lineWidth=2; g.stroke();
+    g.strokeStyle='#00e5ff'; g.lineWidth=2; g.stroke();
     vals.forEach((v,i)=>{const [x,y]=pt(i,R*Math.max(0.04,v)); g.fillStyle='#EAFBFF'; g.beginPath(); g.arc(x,y,3,0,7); g.fill();});
   }
-  g.font='11px '+cssVar('--sans'); g.fillStyle='#7FA6C2';
+  g.font='11px '+cssVar('--sans'); g.fillStyle='#6b7a99';
   DOMAINS.forEach(([k,lab],i)=>{
     const [x,y]=pt(i,R+18);
     g.textAlign=Math.abs(x-cx)<6?'center':(x>cx?'left':'right');
@@ -133,16 +133,16 @@ export function drawRing(c, score){
   g.clearRect(0,0,w,h);
   const cx=w/2,cy=h/2,R=Math.min(w,h)/2-16;
   g.lineWidth=14; g.lineCap='round';
-  g.strokeStyle='#0B2135'; g.beginPath(); g.arc(cx,cy,R,0,Math.PI*2); g.stroke();
+  g.strokeStyle='#111d35'; g.beginPath(); g.arc(cx,cy,R,0,Math.PI*2); g.stroke();
   const frac=score==null?0:Math.max(0.01,Math.min(1,score/100));
   const grd=g.createLinearGradient(0,0,w,h);
-  const col=score==null?['#233B52','#233B52']:score<25?['#2DD4A7','#22D3EE']:score<50?['#22D3EE','#FBBF24']:['#FBBF24','#FB7185'];
+  const col=score==null?['#233B52','#233B52']:score<25?['#00e676','#00e5ff']:score<50?['#00e5ff','#ffcc00']:['#ffcc00','#ff3333'];
   grd.addColorStop(0,col[0]); grd.addColorStop(1,col[1]);
   g.strokeStyle=grd; g.beginPath(); g.arc(cx,cy,R,-Math.PI/2,-Math.PI/2+frac*Math.PI*2); g.stroke();
   g.textAlign='center'; g.textBaseline='middle';
-  g.fillStyle='#FFFFFF'; g.font='600 40px '+cssVar('--mono');
+  g.fillStyle='#FFFFFF'; g.font='700 40px '+cssVar('--display');
   g.fillText(score==null?'—':String(score),cx,cy-6);
-  g.fillStyle='#6F8CA6'; g.font='10px '+cssVar('--sans');
+  g.fillStyle='#6b7a99'; g.font='10px '+cssVar('--display');
   g.fillText('DEVIATION INDEX',cx,cy+20);
 }
 
@@ -162,12 +162,12 @@ export function drawSlur(c, row){
     g.lineTo(X(hi),base); g.closePath();
     g.fillStyle=fill; g.fill(); g.strokeStyle=stroke; g.lineWidth=1.4; g.stroke();
   };
-  curve(mk.dys,'rgba(251,113,133,.16)','rgba(251,113,133,.8)');
-  curve(mk.ctrl,'rgba(45,212,167,.16)','rgba(45,212,167,.85)');
-  g.strokeStyle='#123550'; g.lineWidth=1; g.beginPath(); g.moveTo(0,base+.5); g.lineTo(w,base+.5); g.stroke();
+  curve(mk.dys,'rgba(255,51,51,.16)','rgba(255,51,51,.8)');
+  curve(mk.ctrl,'rgba(0,230,118,.16)','rgba(0,230,118,.85)');
+  g.strokeStyle='rgba(0,229,255,.25)'; g.lineWidth=1; g.beginPath(); g.moveTo(0,base+.5); g.lineTo(w,base+.5); g.stroke();
   if(mk.cut!=null && mk.cut>lo && mk.cut<hi){
-    g.setLineDash([3,3]); g.strokeStyle='#8FD8F0'; g.beginPath(); g.moveTo(X(mk.cut),4); g.lineTo(X(mk.cut),base); g.stroke(); g.setLineDash([]);
-    g.fillStyle='#8FD8F0'; g.font='10px '+cssVar('--sans'); g.textAlign='center'; g.fillText('cut-off '+mk.cut,X(mk.cut),h-4);
+    g.setLineDash([3,3]); g.strokeStyle='#7fe9ff'; g.beginPath(); g.moveTo(X(mk.cut),4); g.lineTo(X(mk.cut),base); g.stroke(); g.setLineDash([]);
+    g.fillStyle='#7fe9ff'; g.font='10px '+cssVar('--sans'); g.textAlign='center'; g.fillText('cut-off '+mk.cut,X(mk.cut),h-4);
   }
   if(isFinite(row.v)){
     const x=Math.max(3,Math.min(w-3,X(row.v)));
@@ -176,8 +176,8 @@ export function drawSlur(c, row){
   }
   g.font='10px '+cssVar('--mono');
   const fmt=v=>(Math.abs(v)>50?Math.round(v):v.toFixed(2));
-  g.fillStyle='#4A6E8A'; g.textAlign='left'; g.fillText(fmt(lo),3,h-4);
+  g.fillStyle='#6b7a99'; g.textAlign='left'; g.fillText(fmt(lo),3,h-4);
   g.textAlign='right'; g.fillText(fmt(hi),w-3,h-4);
-  g.textAlign='center'; g.fillStyle='rgba(45,212,167,.95)'; g.fillText('control',X(mk.ctrl.m),h-4);
-  g.fillStyle='rgba(251,113,133,.95)'; g.fillText('impaired',X(mk.dys.m),h-4);
+  g.textAlign='center'; g.fillStyle='rgba(0,230,118,.95)'; g.fillText('control',X(mk.ctrl.m),h-4);
+  g.fillStyle='rgba(255,51,51,.95)'; g.fillText('impaired',X(mk.dys.m),h-4);
 }

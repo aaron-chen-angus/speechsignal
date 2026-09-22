@@ -413,19 +413,19 @@ export async function render(root){
     const { g, w, h } = fit(liveCanvas);
     if(!liveHist || liveHist.length !== Math.round(w)) liveHist = new Array(Math.round(w)).fill(0);
     const lv = readLevel();
-    g.fillStyle = '#030A12'; g.fillRect(0,0,w,h);
+    g.fillStyle = '#050810'; g.fillRect(0,0,w,h);
     // grid
-    g.strokeStyle='#0D2942'; g.lineWidth=1;
+    g.strokeStyle='rgba(0,229,255,0.10)'; g.lineWidth=1;
     for(let i=1;i<4;i++){const y=Math.round(h*i/4)+.5;g.beginPath();g.moveTo(0,y);g.lineTo(w,y);g.stroke();}
     if(!lv) return;
     liveHist.push(lv.peak); liveHist.shift();
-    g.strokeStyle = lv.peak > 0.985 ? '#FB7185' : '#22D3EE'; g.lineWidth = 1.4; g.beginPath();
+    g.strokeStyle = lv.peak > 0.985 ? '#ff3333' : '#00e5ff'; g.lineWidth = 1.4; g.beginPath();
     for(let x=0;x<liveHist.length;x++){ const a = liveHist[x]*h*0.45; x?g.lineTo(x,h/2-a):g.moveTo(x,h/2-a); }
     for(let x=liveHist.length-1;x>=0;x--){ const a = liveHist[x]*h*0.45; g.lineTo(x,h/2+a); }
     g.stroke();
     if(isRecording()){
-      g.fillStyle='#FB7185'; g.beginPath(); g.arc(w-14,14,6,0,7); g.fill();
-      g.fillStyle='#FFD7DE'; g.font='10px '+cssVar('--sans'); g.textAlign='right'; g.fillText('REC', w-26, 18);
+      g.fillStyle='#ff3333'; g.beginPath(); g.arc(w-14,14,6,0,7); g.fill();
+      g.fillStyle='#ff8a8a'; g.font='10px '+cssVar('--sans'); g.textAlign='right'; g.fillText('REC', w-26, 18);
     }
     const fillEl = document.getElementById('recLvl');
     if(fillEl) fillEl.style.width = Math.min(100, lv.rms*420) + '%';

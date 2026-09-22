@@ -1,16 +1,45 @@
 /* ==========================================================================
-   Design tokens — the established SMILE dark instrument palette, preserved
-   from the prototype. Background #04080F with radial navy washes, panels
-   rgba(9,23,40,.78), hairlines #12354F, cyan #22D3EE, ice #8FD8F0, green
-   #2DD4A7, amber #FBBF24, rose #FB7185, text #DCEBF7, dim #6F8CA6. System
-   sans for prose, ui-monospace for every number.
+   Design tokens — SMILE "TRON / Virtual BlazePod" theme.
+   Cosmetic retint only: variable NAMES are preserved from the original SMILE
+   palette so every var() consumer keeps working unchanged. Only the VALUES
+   were remapped to the TRON tokens (deep space black canvas, neon orange
+   primary, neon cyan accents, Orbitron + Exo 2 fonts).
    ========================================================================== */
 :root{
-  --bg:#04080F; --bg2:#071322; --panel:rgba(9,23,40,.78); --line:#12354F; --line2:#0C2438;
-  --cyan:#22D3EE; --cyan-d:#0E7490; --blue:#3B82F6; --ice:#8FD8F0;
-  --text:#DCEBF7; --dim:#6F8CA6; --green:#2DD4A7; --amber:#FBBF24; --red:#FB7185;
+  /* backgrounds / surfaces */
+  --bg:#050810;            /* deep space black */
+  --bg2:#0a0f1e;           /* background 2 */
+  --panel:#0d1526;         /* surface / panel */
+  --panel2:#111d35;        /* surface 2 */
+  --line:rgba(0,229,255,0.18);   /* hairline borders (cyan) */
+  --line2:rgba(0,229,255,0.07);  /* grid lines (fainter cyan) */
+
+  /* accents */
+  --orange:#ff6b00;        /* neon orange — primary action / emphasis */
+  --orange-d:#c25200;      /* deep orange for gradient bottoms */
+  --cyan:#00e5ff;          /* neon cyan — secondary / accents / headings */
+  --cyan-d:#0090a8;        /* deep cyan for borders/gradients */
+  --blue:#00e5ff;          /* legacy alias -> cyan */
+  --ice:#7fe9ff;           /* light cyan */
+
+  /* text */
+  --text:#e8eaf0;          /* body text */
+  --dim:#6b7a99;           /* muted text */
+
+  /* semantic states */
+  --green:#00e676;         /* success */
+  --amber:#ffcc00;         /* warning */
+  --red:#ff3333;           /* danger */
+
+  /* glows */
+  --glow-orange:0 0 12px rgba(255,107,0,0.6), 0 0 30px rgba(255,107,0,0.25);
+  --glow-cyan:0 0 12px rgba(0,229,255,0.5), 0 0 28px rgba(0,229,255,0.2);
+
+  /* type */
   --mono:ui-monospace,"SF Mono","Cascadia Mono","Roboto Mono",Menlo,Consolas,monospace;
-  --sans:"Segoe UI",-apple-system,BlinkMacSystemFont,Roboto,"Helvetica Neue",Arial,sans-serif;
+  --sans:"Exo 2",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --display:"Orbitron","Exo 2",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+
   --gap:16px;
   --radius:8px;
   --maxw:1500px;

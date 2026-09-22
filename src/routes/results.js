@@ -391,7 +391,7 @@ export async function render(root){
 
     return el('section',{class:'panel'},
       el('h2',{class:'ptitle'}, 'Transcript, sentiment & emotion', el('span',{class:'meta'}, 'separate from the motor-speech score')),
-      el('div',{class:'tx', style:'border:1px solid var(--line2);border-radius:6px;padding:11px 13px;background:rgba(3,12,22,.7)'}, txHost),
+      el('div',{class:'tx', style:'border:1px solid var(--line2);border-radius:6px;padding:11px 13px;background:var(--bg2)'}, txHost),
       el('div',{style:'margin-top:14px;padding-top:12px;border-top:1px solid var(--line2)'},
         el('div',{class:'dim', style:'font-size:10px;letter-spacing:.11em;text-transform:uppercase;margin-bottom:8px'}, 'Emotion & sentiment (reported separately)'),
         emo),
